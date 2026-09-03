@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
+from typing import Literal
 
 class CreateIssueRequest(BaseModel):
     title: str
@@ -17,3 +18,9 @@ class Issue(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(extra="ignore")
+
+class UpdateIssueRequest(BaseModel):
+    title: str | None = None
+    body: str | None = None
+    state: Literal["open", "closed"] | None = None
+

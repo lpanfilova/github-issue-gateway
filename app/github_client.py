@@ -1,6 +1,6 @@
 import httpx
 from app.config import settings
-from app.models import CreateIssueRequest
+from app.models import CreateIssueRequest, UpdateIssueRequest
 
 class GitHubClient:
     def __init__(self):
@@ -41,6 +41,21 @@ class GitHubClient:
             response = await client.get(
                 f"{self.base_url}/issues/{number}",
                 headers=self.headers,
+            )
+
+        response.raise_for_status()
+        return _normalize_issue(response.json())
+
+    async def update_issue(
+            self, 
+            number: int, 
+            issue: UpdateIssueRequest
+        ):
+        async with httpx.AsyncClient() as client:
+            response = await client.patch(
+                f"{self.base_url}/issues/{number}",
+                headers=self.headers,
+                json=issue.model_dump(exclude_none=True),
             )
 
         response.raise_for_status()

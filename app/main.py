@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Response, status
 from app.config import settings
 from app.github_client import GitHubClient
-from app.models import CreateIssueRequest, Issue
+from app.models import CreateIssueRequest, Issue, UpdateIssueRequest
 
 app = FastAPI(
     title="GitHub Issue Gateway",
@@ -32,7 +32,10 @@ async def get_issue(number: int):
 )
 async def create_issue(issue: CreateIssueRequest, response: Response):
     created = await github.create_issue(issue)
-
     response.headers["Location"] = f"/issues/{created['number']}"
 
     return created
+
+@app.patch("/issues/{number}", response_model=Issue)
+async def update_issue(number: int, issue: UpdateIssueRequest):
+    return await github.update_issue(number, issue)
