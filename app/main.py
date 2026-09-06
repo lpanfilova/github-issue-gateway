@@ -1,8 +1,10 @@
-from fastapi import FastAPI, Query, Request, Response, status
+from fastapi import FastAPI, Query, Request, Response, status, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from typing import Literal
+import json
+from app.webhooks import verify_signature, validate_event
 from app.config import settings
 from app.github_client import GitHubClient
 from app.models import (
@@ -95,3 +97,31 @@ async def create_comment(
 )
 async def list_comments(number: int):
     return await github.list_comments(number)
+
+@app.post("/webhook", status_code=204)
+async def webhook(request: Request):
+    body = await request.body()
+
+    signature = request.headers.get(
+        "X-Hub-Signature-256"
+    )
+
+    verify_signature(body, signature)
+
+    event = request.headers.get(
+        "X-GitHub-Event"
+    )
+
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid JSON payload",
+        )
+
+    action = payload.get("action")
+
+    validate_event(event, action)
+
+    return Response(status_code=204)
