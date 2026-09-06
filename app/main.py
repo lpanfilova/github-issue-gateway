@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Response, status
+from fastapi import FastAPI, Query, Response, status
+from typing import Literal
 from app.config import settings
 from app.github_client import GitHubClient
 from app.models import (
@@ -23,9 +24,25 @@ async def healthz():
         "repository": f"{settings.github_owner}/{settings.github_repo}",
     }
 
-@app.get("/issues")
-async def list_issues():
-    return await github.list_issues()
+@app.get("/issues", response_model=list[Issue])
+async def list_issues(
+    response: Response,
+    state: Literal["open", "closed", "all"] = "open",
+    labels: str | None = None,
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=30, ge=1, le=100),
+):
+    issues, link = await github.list_issues(
+        state=state,
+        labels=labels,
+        page=page,
+        per_page=per_page,
+    )
+
+    if link:
+        response.headers["Link"] = link
+
+    return issues
 
 @app.get("/issues/{number}", response_model=Issue)
 async def get_issue(number: int):

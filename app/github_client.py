@@ -19,15 +19,40 @@ class GitHubClient:
             "X-GitHub-Api-Version": "2026-03-10",
         }
 
-    async def list_issues(self):
+    async def list_issues(
+        self,
+        state: str = "open",
+        labels: str | None = None,
+        page: int = 1,
+        per_page: int = 30
+        ):
+
+        params = {
+            "state": state,
+            "page": page,
+            "per_page": per_page,
+        }
+
+        if labels:
+            params["labels"] = labels
+
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 f"{self.base_url}/issues",
                 headers=self.headers,
+                params=params,
             )
 
         response.raise_for_status()
-        return response.json()
+
+        issues = [
+            _normalize_issue(issue)
+            for issue in response.json()
+        ]
+
+        link = response.headers.get("Link")
+
+        return issues, link
 
     async def create_issue(self, issue: CreateIssueRequest):
         async with httpx.AsyncClient() as client:
