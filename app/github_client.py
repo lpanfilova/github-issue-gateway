@@ -1,6 +1,10 @@
 import httpx
 from app.config import settings
-from app.models import CreateIssueRequest, UpdateIssueRequest
+from app.models import (
+    CreateIssueRequest,
+    UpdateIssueRequest,
+    CreateCommentRequest,
+)
 
 class GitHubClient:
     def __init__(self):
@@ -61,6 +65,35 @@ class GitHubClient:
         response.raise_for_status()
         return _normalize_issue(response.json())
 
+    async def create_comment(
+        self,
+        number: int,
+        comment: CreateCommentRequest,
+    ):
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/issues/{number}/comments",
+                headers=self.headers,
+                json=comment.model_dump(),
+            )
+
+        response.raise_for_status()
+        return _normalize_comment(response.json())
+
+    async def list_comments(self, number: int):
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/issues/{number}/comments",
+                headers=self.headers,
+            )
+
+        response.raise_for_status()
+
+        return [
+            _normalize_comment(comment)
+            for comment in response.json()
+        ]
+
 
 
 # helpers
@@ -76,4 +109,15 @@ def _normalize_issue(data: dict) -> dict:
         "labels": [label["name"] for label in data["labels"]],
         "created_at": data["created_at"],
         "updated_at": data["updated_at"],
+    }
+
+def _normalize_comment(data: dict) -> dict:
+    return {
+        "id": data["id"],
+        "body": data["body"],
+        "user": {
+            "login": data["user"]["login"]
+        },
+        "created_at": data["created_at"],
+        "html_url": data["html_url"],
     }

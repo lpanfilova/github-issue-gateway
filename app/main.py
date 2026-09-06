@@ -1,7 +1,13 @@
 from fastapi import FastAPI, Response, status
 from app.config import settings
 from app.github_client import GitHubClient
-from app.models import CreateIssueRequest, Issue, UpdateIssueRequest
+from app.models import (
+    CreateIssueRequest,
+    UpdateIssueRequest,
+    Issue,
+    CreateCommentRequest,
+    Comment,
+)
 
 app = FastAPI(
     title="GitHub Issue Gateway",
@@ -39,3 +45,21 @@ async def create_issue(issue: CreateIssueRequest, response: Response):
 @app.patch("/issues/{number}", response_model=Issue)
 async def update_issue(number: int, issue: UpdateIssueRequest):
     return await github.update_issue(number, issue)
+
+@app.post(
+    "/issues/{number}/comments",
+    status_code=status.HTTP_201_CREATED,
+    response_model=Comment,
+)
+async def create_comment(
+    number: int,
+    comment: CreateCommentRequest,
+):
+    return await github.create_comment(number, comment)
+
+@app.get(
+    "/issues/{number}/comments",
+    response_model=list[Comment],
+)
+async def list_comments(number: int):
+    return await github.list_comments(number)

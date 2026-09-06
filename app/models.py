@@ -24,3 +24,15 @@ class UpdateIssueRequest(BaseModel):
     body: str | None = None
     state: Literal["open", "closed"] | None = None
 
+class CreateCommentRequest(BaseModel):
+    body: str
+
+class CommentUser(BaseModel):
+    login: str
+
+class Comment(BaseModel):
+    id: int
+    body: str
+    user: CommentUser
+    created_at: datetime
+    html_url: str
