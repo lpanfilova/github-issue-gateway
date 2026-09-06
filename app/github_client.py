@@ -1,4 +1,6 @@
 import httpx
+import time
+from fastapi import HTTPException
 from app.config import settings
 from app.models import (
     CreateIssueRequest,
@@ -43,7 +45,7 @@ class GitHubClient:
                 params=params,
             )
 
-        response.raise_for_status()
+        _handle_github_error(response)
 
         issues = [
             _normalize_issue(issue)
@@ -62,7 +64,7 @@ class GitHubClient:
                 json=issue.model_dump(exclude_none=True)
             )
 
-        response.raise_for_status()
+        _handle_github_error(response)
         return _normalize_issue(response.json())
 
     async def get_issue(self, number: int):
@@ -72,7 +74,7 @@ class GitHubClient:
                 headers=self.headers,
             )
 
-        response.raise_for_status()
+        _handle_github_error(response)
         return _normalize_issue(response.json())
 
     async def update_issue(
@@ -87,7 +89,7 @@ class GitHubClient:
                 json=issue.model_dump(exclude_none=True),
             )
 
-        response.raise_for_status()
+        _handle_github_error(response)
         return _normalize_issue(response.json())
 
     async def create_comment(
@@ -102,7 +104,7 @@ class GitHubClient:
                 json=comment.model_dump(),
             )
 
-        response.raise_for_status()
+        _handle_github_error(response)
         return _normalize_comment(response.json())
 
     async def list_comments(self, number: int):
@@ -112,7 +114,7 @@ class GitHubClient:
                 headers=self.headers,
             )
 
-        response.raise_for_status()
+        _handle_github_error(response)
 
         return [
             _normalize_comment(comment)
@@ -146,3 +148,62 @@ def _normalize_comment(data: dict) -> dict:
         "created_at": data["created_at"],
         "html_url": data["html_url"],
     }
+
+def _handle_github_error(response: httpx.Response):
+    if response.is_success:
+        return
+
+    try:
+        message = response.json().get("message", "GitHub API error")
+    except ValueError:
+        message = "GitHub API error"
+
+    if response.status_code in (403,429):
+        remaining =response.headers.get("X-RateLimit-Remaining")
+        retry_after = response.headers.get("Retry-After")
+
+        if remaining == "0" or retry_after:
+            if not retry_after:
+                reset = int(response.headers.get("X-RateLimit-Reset", 0))
+                retry_after = str(max(1, reset - int(time.time())))
+
+            raise HTTPException(
+                status_code=429,
+                detail=f"GitHub rate limit exceeded: {message}",
+                headers={"Retry-After": retry_after},
+            )
+
+    if response.status_code == 401:
+        raise HTTPException(
+            status_code=401,
+            detail=f"GitHub authentication failed: {message}",
+        )
+
+    if response.status_code == 403:
+        raise HTTPException(
+            status_code=403,
+            detail=f"GitHub access forbidden: {message}",
+        )
+
+    if response.status_code == 404:
+        raise HTTPException(
+            status_code=404,
+            detail=f"GitHub resource not found: {message}",
+        )
+
+    if response.status_code == 422:
+        raise HTTPException(
+            status_code=400,
+            detail=f"GitHub rejected the request: {message}",
+        )
+
+    if response.status_code >= 500:
+        raise HTTPException(
+            status_code=503,
+            detail="GitHub service is temporarily unavailable",
+        )
+
+    raise HTTPException(
+        status_code=400,
+        detail=f"GitHub API error: {message}",
+    )

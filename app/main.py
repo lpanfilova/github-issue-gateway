@@ -1,4 +1,7 @@
-from fastapi import FastAPI, Query, Response, status
+from fastapi import FastAPI, Query, Request, Response, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from typing import Literal
 from app.config import settings
 from app.github_client import GitHubClient
@@ -14,6 +17,18 @@ app = FastAPI(
     title="GitHub Issue Gateway",
     version="0.0.1"
 )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    request: Request,
+    exc: RequestValidationError,
+):
+    return JSONResponse(
+        status_code=400,
+        content=jsonable_encoder({
+            "detail":exc.errors()
+        })
+    )
 
 github = GitHubClient()
 
